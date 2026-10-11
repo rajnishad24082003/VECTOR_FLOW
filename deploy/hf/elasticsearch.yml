@@ -1,0 +1,11 @@
+cluster.name: vectorflow
+# Loopback only: ES is never exposed, and binding to localhost keeps ES in dev mode, so the production
+# bootstrap checks (vm.max_map_count etc., which a Space can't change) don't block startup.
+network.host: 127.0.0.1
+discovery.type: single-node
+xpack.security.enabled: false
+# Not used by VectorFlow; disabling them saves memory and avoids outbound downloads.
+xpack.ml.enabled: false
+ingest.geoip.downloader.enabled: false
+# Space disk usage is outside our control; don't let the disk watermark block shard allocation.
+cluster.routing.allocation.disk.threshold_enabled: false

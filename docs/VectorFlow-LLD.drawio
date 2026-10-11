@@ -1,0 +1,755 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="1. Modules &amp; Functions" id="1.-modules-&amp;-functions">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1342" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="&lt;b&gt;VectorFlow — Low Level Design: Every Module, Class and Function&lt;/b&gt;" style="text;html=1;fontSize=22;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="2300" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/config.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;configuration&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class Settings(BaseSettings)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;All runtime configuration. env_prefix=VF_, reads .env, ignores unknown keys. Fields: es_url, es_api_key, es_index, es_timeout_seconds=10, es_startup_retries=30, redis_url, embedding_model, embedding_device=cpu, embedding_batch_size=64, query_prefix, document_prefix, query_cache_size=4096, num_candidates_factor=10, session_ttl_seconds=1800, session_context_weight=0.3, session_decay=0.6, session_history_size=20, session_max_seen=500.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;get_settings() -&amp;gt; Settings&lt;/font&gt;&lt;/b&gt;&lt;br&gt;@lru_cache singleton: parses the environment once and returns the same Settings instance.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="520" height="222" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/main.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;application factory &amp;amp; lifecycle&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;create_app(settings=None, *, embedder=None, store=None, sessions=None) -&amp;gt; FastAPI&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Builds the FastAPI app. Any component can be injected (tests do this); otherwise each is built from Settings. Registers lifespan, the timing middleware and the API router.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;lifespan(app)  [async context manager, nested]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Startup per worker, using AsyncExitStack for cleanup:&lt;br&gt;1) load HFEmbedder in a thread pool; 2) create AsyncElasticsearch, register close(), wait_until_ready(); 3) store.ensure_index(); 4) RedisSessionStore if redis_url else InMemorySessionStore, register close(); 5) warm-up embed; 6) publish settings/embedder/store/sessions on app.state. On shutdown or failed startup, clients are closed.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;response_time_header(request, call_next)  [HTTP middleware]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Measures wall time around the request and sets X-Response-Time-Ms (2 dp).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;app = create_app()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Module-level ASGI app used by uvicorn (app.main:app).&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="326" width="520" height="318" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/schemas.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;Pydantic request/response models&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;DocumentIn&lt;/font&gt;&lt;/b&gt;&lt;br&gt;id?: str, title?: str, text: str (min 1), metadata: dict = {}&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;IndexRequest / IndexResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;documents: list[DocumentIn] (1–1000), refresh = true  →  indexed, failed, ids, took_ms&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;SearchRequest&lt;/font&gt;&lt;/b&gt;&lt;br&gt;query (1–2048), k = 10 (1–100), session_id?, filters?: dict[str, scalar | list[scalar]], use_context = true, exclude_seen = false&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;SearchHit / Timings / SearchResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;id, score, title, text, metadata · embed_ms, search_ms, total_ms · query, session_id, context_applied, hits, timings&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;SessionOut&lt;/font&gt;&lt;/b&gt;&lt;br&gt;id, created_at, updated_at, queries, seen_count, has_context&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;HealthResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;status, elasticsearch, sessions, model, documents?&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="668" width="520" height="314" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/api.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;HTTP routes (APIRouter)&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_ms(start, end) -&amp;gt; float&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Converts a perf_counter interval to milliseconds rounded to 2 dp.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_services(request) -&amp;gt; (Settings, Embedder, VectorStore, SessionStore)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Fetches the singletons placed on app.state by lifespan.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_session_out(session) -&amp;gt; SessionOut&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Maps the internal Session to its API shape: seen_count = len(seen_ids), has_context = context is not None.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;GET /health  health(request, response) -&amp;gt; HealthResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;store.ping() + sessions.ping(); store.count() when ES is up. Sets 503 and status &quot;degraded&quot; if either is down.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;POST /documents  index_documents(body: IndexRequest, request) -&amp;gt; IndexResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;model_dump() docs, builds text &quot;title. text&quot;, embed_documents() in thread pool, store.index_documents(refresh=body.refresh), returns indexed/failed/ids/took_ms.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;DELETE /documents/{doc_id}  delete_document(doc_id, request)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;store.delete(); 204 on success, 404 if it did not exist.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;POST /search  search(body: SearchRequest, request) -&amp;gt; SearchResponse&lt;/font&gt;&lt;/b&gt;&lt;br&gt;1) load session if session_id (404 if missing); 2) embed_query in thread pool; 3) context_applied = session and use_context and session.context; blend_query(weight=session_context_weight); 4) store.search(k, num_candidates=k×num_candidates_factor, filters, exclude_ids=seen_ids if exclude_seen); 5) record_query + sessions.save; 6) build response with timings embed/search/total.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;POST /sessions  create_session(request) -&amp;gt; SessionOut  [201]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;sessions.create().&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;GET /sessions/{session_id}  get_session(...) -&amp;gt; SessionOut&lt;/font&gt;&lt;/b&gt;&lt;br&gt;404 if missing or expired.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;DELETE /sessions/{session_id}  delete_session(...)  [204]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;404 if missing or expired.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="520" height="522" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;tests/&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;test doubles &amp;amp; suites (pytest)&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;FakeEmbedder&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Bag-of-words hashing into 256 dims; texts sharing words get similar vectors. No torch.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;FakeVectorStore&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Brute-force cosine with the same filter / exclude semantics and score scale as ES.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;SlowModel + make_embedder()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Fake SentenceTransformer used to test micro-batching, cache and error propagation.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;test_api.py · test_sessions.py · test_embeddings.py&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Endpoints, validation, filters, sessions (context steering, exclude_seen), maths, serialisation, TTL, batching. 18 tests.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="700" y="626" width="520" height="261" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/embeddings.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;Hugging Face embedding service&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class Embedder(Protocol)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Interface: dim, model_name, embed_query(text), embed_documents(texts). Lets tests inject a fake.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class HFEmbedder&lt;/font&gt;&lt;/b&gt;&lt;br&gt;sentence-transformers implementation. All vectors float32 and L2-normalised (cosine == dot).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;__init__(model_name, device='cpu', batch_size=64, query_prefix='', document_prefix='', cache_size=4096)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Lazily imports sentence_transformers (keeps torch out of tests), loads the model, reads dim (get_embedding_dimension / get_sentence_embedding_dimension), creates _model_lock, _pending queue + _pending_lock, and wraps _encode_query in an lru_cache.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_run_model(texts) -&amp;gt; ndarray[n, dim]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;model.encode(normalize_embeddings=True, convert_to_numpy=True, batch_size, no progress bar) → float32. No locking.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_encode(texts) -&amp;gt; ndarray&lt;/font&gt;&lt;/b&gt;&lt;br&gt;_run_model under _model_lock (one forward pass at a time per worker).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_encode_query(text) -&amp;gt; ndarray[dim]  (micro-batching)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Enqueue (prefix+text, Future); acquire _model_lock; if own Future not yet done, drain the whole queue and encode it in one pass, resolving every Future (or set_exception on all). Vectors are made read-only because they are shared through the cache.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;embed_query(text) -&amp;gt; ndarray&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Public entry: LRU-cached _encode_query.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;embed_documents(texts) -&amp;gt; ndarray[n, dim]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Adds document_prefix, encodes in chunks of batch_size, lock taken per chunk so queries interleave; concatenates.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;cache_info() -&amp;gt; {hits, misses, size}&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Query-cache statistics.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="80" width="520" height="531" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/sessions.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;stateful search sessions&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_normalize(v) -&amp;gt; ndarray&lt;/font&gt;&lt;/b&gt;&lt;br&gt;v / ||v|| as float32 (zero vector returned unchanged).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;@dataclass Session&lt;/font&gt;&lt;/b&gt;&lt;br&gt;id, created_at, updated_at, queries: list[str], seen_ids: list[str], context: ndarray | None.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Session.new() -&amp;gt; Session&lt;/font&gt;&lt;/b&gt;&lt;br&gt;uuid4 hex id, created_at = updated_at = now.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Session.to_json() -&amp;gt; str&lt;/font&gt;&lt;/b&gt;&lt;br&gt;JSON; context stored as base64 of float32 bytes (compact, lossless).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Session.from_json(raw) -&amp;gt; Session&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Inverse of to_json; decodes context back into a float32 array.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;blend_query(query_vec, context, weight) -&amp;gt; ndarray&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Returns query_vec unchanged if no context or weight ≤ 0; else normalize((1−w)·q + w·context).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;record_query(session, query, query_vec, result_ids, decay, history_size, max_seen)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;In place: context = q (first query) or normalize(decay·context + (1−decay)·q); queries keeps last history_size; seen_ids is an ordered set (re-seen ids move to the end) trimmed to max_seen; updated_at = now.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class SessionStore(Protocol)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;create, get, save, delete, ping, close.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class InMemorySessionStore(ttl_seconds)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;dict id → (expires_at, json). get() lazily evicts expired entries; save() resets expiry. Single process only.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class RedisSessionStore(url, ttl_seconds, prefix='vf:session:')&lt;/font&gt;&lt;/b&gt;&lt;br&gt;redis.asyncio client. _key(id) = prefix + id; create = new + save; get = GET + from_json; save = SET EX ttl (sliding TTL); delete = DEL &amp;gt; 0; ping = PING (exceptions → False); close = aclose().&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1360" y="635" width="520" height="522" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;app/store.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;Elasticsearch vector store&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class VectorStore(Protocol)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Interface: ensure_index, index_documents, delete, search, count, ping.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_as_keyword(value) -&amp;gt; str&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Flattened fields index leaves as keyword strings: bool → &quot;true&quot;/&quot;false&quot;, others str().&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;build_filter(filters, exclude_ids) -&amp;gt; dict&lt;/font&gt;&lt;/b&gt;&lt;br&gt;bool query: filter = [term metadata.&amp;lt;k&amp;gt;] for scalars / [terms metadata.&amp;lt;k&amp;gt;] for lists; must_not = [ids exclude_ids] when given. Used as the knn pre-filter.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;class ElasticVectorStore(client, index, dim)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Holds AsyncElasticsearch client, index name and vector dim.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;wait_until_ready(retries=30, delay=2.0)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Polls cluster.health(wait_for_status=yellow); on ConnectionError sleeps and retries; RuntimeError when exhausted.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;ensure_index()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Create the index if missing, then read its mapping and raise if embedding.dims != model dim; finally wait for index health yellow (30 s).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_create_index()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;indices.create: 1 shard, 0 replicas, refresh 1s; mapping title/text=text, metadata=flattened, created_at=date, embedding=dense_vector(dim, cosine, int8_hnsw m=16 ef_construction=100). Swallows resource_already_exists_exception (multi-worker race).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;index_documents(docs, vectors, refresh=False) -&amp;gt; (ids, failed)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Assigns uuid4 hex ids where missing, stamps created_at (UTC ISO), builds bulk actions, async_bulk(raise_on_error=False, refresh=wait_for if requested). Returns successful ids and failure count; logs first failures.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;delete(doc_id) -&amp;gt; bool&lt;/font&gt;&lt;/b&gt;&lt;br&gt;client.delete(refresh=wait_for, ignore 404); True if result == &quot;deleted&quot;.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;search(vector, k, num_candidates, filters=None, exclude_ids=None) -&amp;gt; list[dict]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;knn{field: embedding, query_vector, k, num_candidates=max(nc, k), filter=build_filter(...)}, size=k, source_excludes=[embedding]. Maps hits → {id, score, title, text, metadata}.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;count() -&amp;gt; int&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Document count of the index.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;ping() -&amp;gt; bool&lt;/font&gt;&lt;/b&gt;&lt;br&gt;client.ping(); any exception → False.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="2020" y="80" width="520" height="647" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;scripts/ingest.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;bulk loader (HTTP client)&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;read_jsonl(path) -&amp;gt; Iterator[dict]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Yields one document per non-empty JSONL line.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;read_hf(name, split, text_field, title_field, limit) -&amp;gt; Iterator[dict]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Streams a Hugging Face dataset; id = &amp;lt;name&amp;gt;-&amp;lt;split&amp;gt;-&amp;lt;i&amp;gt;; scalar non-text columns become metadata.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;batched(it, size) -&amp;gt; Iterator[list[dict]]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Chunks an iterator into lists of size (last may be shorter).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;main()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Args: --jsonl | --hf-dataset, --split, --text-field, --title-field, --limit, --batch-size 256, --api. POSTs each batch with refresh=false, prints running count and docs/s, exits 1 if any failed.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="2020" y="751" width="520" height="246" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;scripts/benchmark.py&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;latency / throughput benchmark&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;pct(values, p) -&amp;gt; float&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Nearest-rank percentile.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;run(args)  [async]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;httpx.AsyncClient; optional shared session; semaphore limits concurrency; warm-up requests then reset stats; gathers N requests; prints throughput and p50/p95/p99/mean for client latency and server embed/search/total.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;one(i)  [nested async]&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Builds a query (unique suffix unless --allow-cache), times POST /search, records server timings, counts errors.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;main()&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Args: --api, --requests 500, --concurrency 8, --k 10, --warmup 20, --session, --allow-cache.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="2020" y="1021" width="520" height="261" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value="get_settings()" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="include_router" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="c5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="validates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=0;exitY=0.8;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="c5" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="embeds via" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.15;exitDx=0;exitDy=0;entryX=0;entryY=0.15;entryDx=0;entryDy=0;" edge="1" parent="1" source="c5" target="c7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="sessions" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" edge="1" parent="1" source="c5" target="c8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="search / index / delete / count" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;endArrow=open;endFill=0;exitX=0.6;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c5" target="c9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="2. Interfaces &amp; Implementations" id="2.-interfaces-&amp;-implementations">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1980" pageHeight="856" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="&lt;b&gt;VectorFlow — Low Level Design: Interfaces (Protocols) and Implementations&lt;/b&gt;" style="text;html=1;fontSize=22;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="«Protocol» Embedder" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="380" height="124" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="+ dim: int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c2">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="+ model_name: str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c2">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c2">
+          <mxGeometry x="0" y="70" width="380" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="+ embed_query(text) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c2">
+          <mxGeometry x="0" y="78" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="+ embed_documents(texts) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c2">
+          <mxGeometry x="0" y="98" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="HFEmbedder" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="380" height="304" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="- _model: SentenceTransformer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="- _batch_size: int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="- _query_prefix / _document_prefix: str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="70" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value="- _model_lock: threading.Lock" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="90" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="- _pending: list[(str, Future)]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="110" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="- _pending_lock: threading.Lock" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="130" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="- _cached_query: lru_cache(_encode_query)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="150" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="170" width="380" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="- _run_model(texts) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="178" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="- _encode(texts) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="198" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="- _encode_query(text) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="218" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="+ embed_query(text) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="238" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="+ embed_documents(texts) -&amp;gt; ndarray" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="258" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="+ cache_info() -&amp;gt; dict" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c8">
+          <mxGeometry x="0" y="278" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="«Protocol» VectorStore" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="500" y="80" width="520" height="156" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="+ ensure_index()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="30" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="+ index_documents(docs, vectors, refresh) -&amp;gt; (ids, failed)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="50" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="+ delete(doc_id) -&amp;gt; bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="70" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="+ search(vector, k, num_candidates, filters, exclude_ids) -&amp;gt; list[dict]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="90" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="+ count() -&amp;gt; int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="110" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="+ ping() -&amp;gt; bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c23">
+          <mxGeometry x="0" y="130" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="ElasticVectorStore" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="500" y="300" width="520" height="264" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="+ client: AsyncElasticsearch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="30" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" value="+ index: str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="50" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c33" value="+ dim: int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="70" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c34" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="90" width="520" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c35" value="+ wait_until_ready(retries, delay)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="98" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c36" value="+ ensure_index()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="118" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c37" value="- _create_index()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="138" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c38" value="+ index_documents(docs, vectors, refresh)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="158" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c39" value="+ delete(doc_id)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="178" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c40" value="+ search(vector, k, num_candidates, filters, exclude_ids)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="198" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c41" value="+ count()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="218" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c42" value="+ ping()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c30">
+          <mxGeometry x="0" y="238" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c43" value="«Protocol» SessionStore" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="80" width="380" height="156" as="geometry" />
+        </mxCell>
+        <mxCell id="c44" value="+ create() -&amp;gt; Session" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c45" value="+ get(id) -&amp;gt; Session | None" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c46" value="+ save(session)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="70" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c47" value="+ delete(id) -&amp;gt; bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="90" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c48" value="+ ping() -&amp;gt; bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="110" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c49" value="+ close()" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c43">
+          <mxGeometry x="0" y="130" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c50" value="InMemorySessionStore" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="300" width="380" height="124" as="geometry" />
+        </mxCell>
+        <mxCell id="c51" value="+ ttl: int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c50">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c52" value="- _data: dict[id, (expires_at, json)]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c50">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c53" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c50">
+          <mxGeometry x="0" y="70" width="380" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c54" value="+ create / get / save / delete" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c50">
+          <mxGeometry x="0" y="78" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c55" value="+ ping / close" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c50">
+          <mxGeometry x="0" y="98" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c56" value="RedisSessionStore" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="470" width="380" height="164" as="geometry" />
+        </mxCell>
+        <mxCell id="c57" value="- _redis: redis.asyncio.Redis" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c58" value="+ ttl: int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c59" value="+ prefix = 'vf:session:'" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="70" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c60" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="90" width="380" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c61" value="- _key(id) -&amp;gt; str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="98" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c62" value="+ create / get / save / delete" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="118" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c63" value="+ ping / close" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c56">
+          <mxGeometry x="0" y="138" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c64" value="«dataclass» Session" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="80" width="360" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="c65" value="+ id: str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="30" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c66" value="+ created_at: float" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="50" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c67" value="+ updated_at: float" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="70" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c68" value="+ queries: list[str]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="90" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c69" value="+ seen_ids: list[str]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="110" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c70" value="+ context: ndarray | None" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="130" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c71" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;html=1;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="150" width="360" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="c72" value="+ new() -&amp;gt; Session  «classmethod»" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="158" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c73" value="+ to_json() -&amp;gt; str" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="178" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c74" value="+ from_json(raw) -&amp;gt; Session  «classmethod»" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c64">
+          <mxGeometry x="0" y="198" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c75" value="sessions module functions" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="380" width="360" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c76" value="_normalize(v)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c75">
+          <mxGeometry x="0" y="30" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c77" value="blend_query(q, context, weight)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c75">
+          <mxGeometry x="0" y="50" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c78" value="record_query(session, query, q, ids, ...)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c75">
+          <mxGeometry x="0" y="70" width="360" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c79" value="Test doubles" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="380" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c80" value="FakeEmbedder  ⟶ Embedder" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c79">
+          <mxGeometry x="0" y="30" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c81" value="FakeVectorStore  ⟶ VectorStore" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c79">
+          <mxGeometry x="0" y="50" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c82" value="InMemorySessionStore  ⟶ SessionStore" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c79">
+          <mxGeometry x="0" y="70" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c83" value="FastAPI app.state  (set by lifespan)" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="500" y="640" width="520" height="116" as="geometry" />
+        </mxCell>
+        <mxCell id="c84" value="+ settings: Settings" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c83">
+          <mxGeometry x="0" y="30" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c85" value="+ embedder: Embedder" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c83">
+          <mxGeometry x="0" y="50" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c86" value="+ store: VectorStore" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c83">
+          <mxGeometry x="0" y="70" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c87" value="+ sessions: SessionStore" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;html=1;fontSize=11;fontFamily=Courier New;" vertex="1" parent="c83">
+          <mxGeometry x="0" y="90" width="520" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="c88" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=block;endFill=0;dashed=1;" edge="1" parent="1" source="c8" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c89" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=block;endFill=0;dashed=1;" edge="1" parent="1" source="c30" target="c23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c90" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=block;endFill=0;dashed=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="c50" target="c43">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c91" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=block;endFill=0;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c56" target="c43">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c92" value="stores / returns" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=open;endFill=0;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="c43" target="c64">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c93" value="mutates / reads" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=open;endFill=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="c75" target="c64">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c94" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=diamondThin;endFill=1;startArrow=none;endSize=14;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="c2" target="c83">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c95" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=diamondThin;endFill=1;startArrow=none;endSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c30" target="c83">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c96" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;endArrow=diamondThin;endFill=1;startArrow=none;endSize=14;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c56" target="c83">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="3. Search Sequence" id="3.-search-sequence">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="930" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="&lt;b&gt;VectorFlow — Low Level Design: POST /search Sequence (session, cache miss)&lt;/b&gt;" style="text;html=1;fontSize=22;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;b&gt;Client&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;b&gt;Middleware&lt;br&gt;response_time_header&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="260" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;b&gt;api.search()&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="460" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="&lt;b&gt;RedisSessionStore&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="660" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="&lt;b&gt;HFEmbedder&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="860" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="&lt;b&gt;sessions&lt;br&gt;blend/record&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="&lt;b&gt;ElasticVectorStore&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="&lt;b&gt;Elasticsearch&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1460" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="&lt;b&gt;Redis&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="80" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="POST /search {query, k, session_id, filters, use_context, exclude_seen}" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="140" y="170" as="sourcePoint" />
+            <mxPoint x="340" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c12" value="&lt;font style=&quot;font-size:10px&quot;&gt;start = perf_counter()&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fffbe6;strokeColor=#b7a33a;align=left;spacingLeft=4;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="350" y="194" width="180" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="call_next(request) → Pydantic validates SearchRequest (422 on error)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="256" as="sourcePoint" />
+            <mxPoint x="540" y="256" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c14" value="&lt;font style=&quot;font-size:10px&quot;&gt;_services(request) → settings, embedder, store, sessions&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fffbe6;strokeColor=#b7a33a;align=left;spacingLeft=4;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="550" y="280" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="get(session_id)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="348" as="sourcePoint" />
+            <mxPoint x="740" y="348" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c16" value="GET vf:session:&amp;lt;id&amp;gt;" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="740" y="394" as="sourcePoint" />
+            <mxPoint x="1740" y="394" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c17" value="JSON | nil" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1740" y="440" as="sourcePoint" />
+            <mxPoint x="740" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c18" value="Session (or None → HTTPException 404)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="740" y="486" as="sourcePoint" />
+            <mxPoint x="540" y="486" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c19" value="run_in_threadpool(embed_query, query)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="532" as="sourcePoint" />
+            <mxPoint x="940" y="532" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c20" value="&lt;font style=&quot;font-size:10px&quot;&gt;lru_cache miss → _encode_query: enqueue (text, Future), acquire _model_lock, drain queue, one forward pass, resolve Futures&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fffbe6;strokeColor=#b7a33a;align=left;spacingLeft=4;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="950" y="556" width="190" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="query_vec (384-d, normalised, read-only)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="940" y="668" as="sourcePoint" />
+            <mxPoint x="540" y="668" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c22" value="blend_query(query_vec, session.context, 0.3)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="714" as="sourcePoint" />
+            <mxPoint x="1140" y="714" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c23" value="normalize(0.7·q + 0.3·ctx)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1140" y="760" as="sourcePoint" />
+            <mxPoint x="540" y="760" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c24" value="search(vec, k, num_candidates=k×10, filters, exclude_ids=seen_ids?)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="806" as="sourcePoint" />
+            <mxPoint x="1340" y="806" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c25" value="&lt;font style=&quot;font-size:10px&quot;&gt;build_filter(): term/terms on metadata.*, must_not ids&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fffbe6;strokeColor=#b7a33a;align=left;spacingLeft=4;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="830" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c26" value="POST /&amp;lt;index&amp;gt;/_search {knn{...filter}, size=k, _source excludes embedding}" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1340" y="898" as="sourcePoint" />
+            <mxPoint x="1540" y="898" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c27" value="hits (_id, _score, _source)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1540" y="944" as="sourcePoint" />
+            <mxPoint x="1340" y="944" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c28" value="[{id, score, title, text, metadata}]" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1340" y="990" as="sourcePoint" />
+            <mxPoint x="540" y="990" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c29" value="record_query(session, query, query_vec, ids, decay=0.6, history=20, max_seen=500)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="1036" as="sourcePoint" />
+            <mxPoint x="1140" y="1036" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c30" value="save(session)" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="1082" as="sourcePoint" />
+            <mxPoint x="740" y="1082" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c31" value="SET vf:session:&amp;lt;id&amp;gt; &amp;lt;json&amp;gt; EX 1800" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="740" y="1128" as="sourcePoint" />
+            <mxPoint x="1740" y="1128" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c32" value="OK" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1740" y="1174" as="sourcePoint" />
+            <mxPoint x="740" y="1174" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c33" value="SearchResponse {hits, context_applied, timings{embed_ms, search_ms, total_ms}}" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="1220" as="sourcePoint" />
+            <mxPoint x="340" y="1220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c34" value="200 JSON + X-Response-Time-Ms header" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="1266" as="sourcePoint" />
+            <mxPoint x="140" y="1266" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c35" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="140" y="130" as="sourcePoint" />
+            <mxPoint x="140" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c36" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="130" as="sourcePoint" />
+            <mxPoint x="340" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c37" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="130" as="sourcePoint" />
+            <mxPoint x="540" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c38" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="740" y="130" as="sourcePoint" />
+            <mxPoint x="740" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c39" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="940" y="130" as="sourcePoint" />
+            <mxPoint x="940" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c40" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1140" y="130" as="sourcePoint" />
+            <mxPoint x="1140" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c41" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1340" y="130" as="sourcePoint" />
+            <mxPoint x="1340" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c42" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1540" y="130" as="sourcePoint" />
+            <mxPoint x="1540" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c43" value="" style="html=1;fontSize=10;endArrow=block;endFill=1;verticalAlign=bottom;labelBackgroundColor=none;dashed=1;endArrow=none;strokeColor=#999999;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1740" y="130" as="sourcePoint" />
+            <mxPoint x="1740" y="1312" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="4. Algorithms" id="4.-algorithms">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1910" pageHeight="1120" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="&lt;b&gt;VectorFlow — Low Level Design: Core Algorithms&lt;/b&gt;" style="text;html=1;fontSize=22;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;b&gt;A. HFEmbedder._encode_query — micro-batching&lt;/b&gt;" style="text;html=1;fontSize=15;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="embed_query(text)" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="115" width="260" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="lru_cache lookup" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="185" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="cache hit?" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="230" y="250" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="return cached vector (≈1 ms)" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="540" y="265" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="with _pending_lock: append (prefix+text, Future)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="360" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="acquire _model_lock (wait for any running pass)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="435" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="own Future already done?" style="rhombus;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="230" y="500" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="with _pending_lock: batch = all pending; pending = []" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="610" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="_run_model(batch texts) — one forward pass for N queries" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="685" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c12" value="for each (Future, vec): vec read-only, set_result" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="760" width="260" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c13" value="on exception: set_exception on every Future" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="540" y="760" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c14" value="release lock → return future.result(); cache stores it" style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="840" width="260" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="c15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c3" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c4" target="c5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c7" target="c8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c8" target="c9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c10" target="c11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c11" target="c12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c12" target="c14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c22" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c5" target="c6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c23" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c5" target="c7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c24" value="no (this thread leads)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c9" target="c10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c25" value="yes (another thread&#10;encoded it)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c9" target="c14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="110" y="540" />
+              <mxPoint x="110" y="862" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c26" value="error" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c11" target="c13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c27" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c13" target="c14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c28" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;Why&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div&gt;&amp;bull; torch already uses OMP_NUM_THREADS cores per pass; parallel passes thrash the CPU.&lt;/div&gt;&lt;div&gt;&amp;bull; Under load N waiting queries cost ~1 pass instead of N sequential passes.&lt;/div&gt;&lt;div&gt;&amp;bull; Measured at concurrency 16: p99 212 → 161 ms, throughput ≈ +20%.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#fffbe6;strokeColor=#b7a33a;" vertex="1" parent="1">
+          <mxGeometry x="760" y="380" width="330" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c29" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;B. Session context maths (app/sessions.py)&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;blend_query(q, ctx, w)  — applied before search&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;if ctx is None or w ≤ 0:  q_search = q&lt;/div&gt;&lt;div&gt;else:  q_search = normalize((1 − w) · q + w · ctx)        default w = 0.3&lt;/div&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;record_query(...)  — applied after search&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;ctx₁ = q₁&lt;/div&gt;&lt;div&gt;ctxₙ = normalize(d · ctxₙ₋₁ + (1 − d) · qₙ)        default d = 0.6&lt;/div&gt;&lt;div&gt;Note: the stored context uses the raw query vector qₙ, not the blended one, so context cannot amplify itself.&lt;/div&gt;&lt;div&gt;queries  ← (queries + [query])[-20:]&lt;/div&gt;&lt;div&gt;seen_ids ← ordered set; ids returned again move to the end; keep last 500&lt;/div&gt;&lt;div&gt;updated_at ← now&lt;/div&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;Example&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&quot;rockets and moon landings&quot; → &quot;what are the latest missions&quot;: space documents rank higher than with the bare query; exclude_seen then surfaces unseen documents (e.g. James Webb telescope).&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="80" width="640" height="268" as="geometry" />
+        </mxCell>
+        <mxCell id="c30" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;C. build_filter(filters, exclude_ids) — kNN pre-filter&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div&gt;Input:  {&quot;category&quot;: &quot;tech&quot;, &quot;tags&quot;: [&quot;a&quot;, 1], &quot;active&quot;: true},  exclude_ids = [&quot;x&quot;]&lt;/div&gt;&lt;div&gt;Output: {&quot;bool&quot;: {&quot;filter&quot;: [&lt;/div&gt;&lt;div&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;{&quot;term&quot;:  {&quot;metadata.category&quot;: &quot;tech&quot;}},&lt;/div&gt;&lt;div&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;{&quot;terms&quot;: {&quot;metadata.tags&quot;: [&quot;a&quot;, &quot;1&quot;]}},&lt;/div&gt;&lt;div&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;{&quot;term&quot;:  {&quot;metadata.active&quot;: &quot;true&quot;}}],&lt;/div&gt;&lt;div&gt;&amp;nbsp;&amp;nbsp;&quot;must_not&quot;: [{&quot;ids&quot;: {&quot;values&quot;: [&quot;x&quot;]}}]}}&lt;/div&gt;&lt;div&gt;Applied inside knn.filter, so HNSW only considers matching documents and still returns k results when possible.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="560" width="640" height="169" as="geometry" />
+        </mxCell>
+        <mxCell id="c31" value="&lt;b&gt;D. Startup: lifespan + ElasticVectorStore.ensure_index&lt;/b&gt;" style="text;html=1;fontSize=15;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="920" width="900" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c32" value="&lt;b&gt;1. HFEmbedder()&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Load model in thread pool; read dim&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c33" value="&lt;b&gt;2. wait_until_ready&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;cluster.health yellow; ConnectionError → sleep 2 s, max 30 tries&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="270" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c34" value="&lt;b&gt;3. indices.exists?&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;No → _create_index (resource_already_exists_exception ignored: another worker won)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="500" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c35" value="&lt;b&gt;4. Dimension check&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;get_mapping → embedding.dims must equal model dim, else RuntimeError&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="730" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c36" value="&lt;b&gt;5. Index health&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;cluster.health(index, yellow, 30 s)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="960" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c37" value="&lt;b&gt;6. Session store&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RedisSessionStore(url, ttl) or InMemorySessionStore(ttl)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c38" value="&lt;b&gt;7. Warm-up + publish&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;embed_documents([&quot;warm up&quot;]); set app.state.*; yield&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c39" value="&lt;b&gt;8. Shutdown&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;AsyncExitStack closes Redis and ES clients (also on failed startup)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="965" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="c40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c32" target="c33">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c41" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c33" target="c34">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c34" target="c35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c43" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c35" target="c36">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c44" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c36" target="c37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c45" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c37" target="c38">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c46" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=10;endArrow=block;endFill=1;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="c38" target="c39">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="5. Data Model &amp; Config" id="5.-data-model-&amp;-config">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="803" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="&lt;b&gt;VectorFlow — Low Level Design: Storage Schemas &amp;amp; Configuration&lt;/b&gt;" style="text;html=1;fontSize=22;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;Elasticsearch index: vectorflow-docs&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;text-align:center&quot;&gt;&lt;i&gt;VF_ES_INDEX&lt;/i&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;settings&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;number_of_shards: 1 · number_of_replicas: 0 · refresh_interval: 1s&lt;/div&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;mappings.properties&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;_id: keyword&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Client-supplied id or uuid4 hex.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;title: text&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Optional; also prepended to the embedded text.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;text: text&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Document body (required).&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;metadata: flattened&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Arbitrary JSON object; every leaf filterable as metadata.&amp;lt;key&amp;gt; keyword.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;created_at: date&lt;/font&gt;&lt;/b&gt;&lt;br&gt;UTC ISO timestamp set at index time.&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;embedding: dense_vector(dims=384, index=true, similarity=cosine)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;index_options: int8_hnsw, m=16, ef_construction=100. Excluded from _source in search responses.&lt;/div&gt;&lt;div style=&quot;margin-top:4px&quot;&gt;&lt;b&gt;&lt;u&gt;Score&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;_score = (1 + cosine) / 2  ∈ [0, 1]&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="560" height="370" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;Redis session record&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Key&lt;/font&gt;&lt;/b&gt;&lt;br&gt;vf:session:&amp;lt;32-char uuid4 hex&amp;gt;&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Command&lt;/font&gt;&lt;/b&gt;&lt;br&gt;SET key value EX 1800 on every save (sliding TTL); GET; DEL&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Value (JSON)&lt;/font&gt;&lt;/b&gt;&lt;br&gt;{&quot;id&quot;: &quot;...&quot;, &quot;created_at&quot;: 1791378950.93, &quot;updated_at&quot;: 1791378951.07, &quot;queries&quot;: [&quot;rockets and moon landings&quot;, ...], &quot;seen_ids&quot;: [&quot;doc-030&quot;, ...], &quot;context&quot;: &quot;&amp;lt;base64 of 384 × float32 = 1536 bytes&amp;gt;&quot; | null}&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Size&lt;/font&gt;&lt;/b&gt;&lt;br&gt;≈ 2 KB context + history + up to 500 ids&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Server config&lt;/font&gt;&lt;/b&gt;&lt;br&gt;--save &quot;&quot; --appendonly no --maxmemory 256mb --maxmemory-policy volatile-lru&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="640" y="80" width="560" height="251" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;Settings (VF_* environment variables)&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_ES_URL = http://localhost:9200&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Elasticsearch endpoint&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_ES_API_KEY = None&lt;/font&gt;&lt;/b&gt;&lt;br&gt;API key when ES security is on&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_ES_INDEX = vectorflow-docs&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Index name&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_ES_TIMEOUT_SECONDS = 10&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Request timeout&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_ES_STARTUP_RETRIES = 30&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Startup connection attempts (2 s apart)&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_REDIS_URL = redis://localhost:6379/0&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Empty → in-memory sessions&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_EMBEDDING_MODEL = all-MiniLM-L6-v2&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Any sentence-transformers model&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_EMBEDDING_DEVICE = cpu&lt;/font&gt;&lt;/b&gt;&lt;br&gt;cpu / cuda&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_EMBEDDING_BATCH_SIZE = 64&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Document encode chunk size&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_QUERY_PREFIX / VF_DOCUMENT_PREFIX = &quot;&quot;&lt;/font&gt;&lt;/b&gt;&lt;br&gt;e.g. &quot;query: &quot; / &quot;passage: &quot; for e5&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_QUERY_CACHE_SIZE = 4096&lt;/font&gt;&lt;/b&gt;&lt;br&gt;LRU entries per worker&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_NUM_CANDIDATES_FACTOR = 10&lt;/font&gt;&lt;/b&gt;&lt;br&gt;num_candidates = k × factor&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_SESSION_TTL_SECONDS = 1800&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Idle expiry&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_SESSION_CONTEXT_WEIGHT = 0.3&lt;/font&gt;&lt;/b&gt;&lt;br&gt;w in blend_query&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_SESSION_DECAY = 0.6&lt;/font&gt;&lt;/b&gt;&lt;br&gt;d in record_query&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_SESSION_HISTORY_SIZE = 20&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Queries kept&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;VF_SESSION_MAX_SEEN = 500&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Seen ids kept&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;WEB_CONCURRENCY / OMP_NUM_THREADS = 2 / 4&lt;/font&gt;&lt;/b&gt;&lt;br&gt;uvicorn workers / torch threads per worker&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="80" width="560" height="663" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="&lt;div style=&quot;text-align:center&quot;&gt;&lt;b&gt;&lt;font style=&quot;font-size:14px&quot;&gt;Docker artefacts&lt;/font&gt;&lt;/b&gt;&lt;/div&gt;&lt;hr&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;Dockerfile&lt;/font&gt;&lt;/b&gt;&lt;br&gt;python:3.12-slim → pip install CPU torch → requirements.txt → download VF_EMBEDDING_MODEL into HF_HOME=/opt/hf-cache → HF_HUB_OFFLINE=1 → copy app/ → non-root user vf (uid 1000) → HEALTHCHECK GET /health → CMD uvicorn app.main:app --host 0.0.0.0 --port 8000&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;docker-compose.yml&lt;/font&gt;&lt;/b&gt;&lt;br&gt;elasticsearch (8.15.3, single-node, security off, 1 GB heap, disk threshold off, volume esdata, curl healthcheck) · redis (7-alpine, ephemeral, redis-cli ping healthcheck, no host port) · api (build ., env VF_ES_URL / VF_REDIS_URL / WEB_CONCURRENCY / OMP_NUM_THREADS, port 8000, depends_on healthy, restart unless-stopped)&lt;/div&gt;&lt;div style=&quot;margin-bottom:5px&quot;&gt;&lt;b&gt;&lt;font color=&quot;#1a3d7c&quot; face=&quot;Courier New&quot;&gt;.dockerignore&lt;/font&gt;&lt;/b&gt;&lt;br&gt;Excludes .venv, tests, scripts, data, docs and .env from the build context.&lt;/div&gt;" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=10;spacingRight=10;spacingTop=6;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="1160" height="184" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

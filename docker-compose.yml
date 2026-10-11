@@ -1,0 +1,53 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      # 512m is plenty for a few thousand docs; raise it for large indexes.
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-1g} -Xmx${ES_HEAP:-1g}
+      # Dev convenience: otherwise ES refuses to allocate shards when the host disk is >90% full.
+      # Remove in production and keep real free-space headroom instead.
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    # Security is disabled, so only listen on the host's loopback.
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    # Sessions are ephemeral: no persistence, evict least-recently-used keys with a TTL when full.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    image: vectorflow:latest
+    environment:
+      - VF_ES_URL=http://elasticsearch:9200
+      - VF_REDIS_URL=redis://redis:6379/0
+      # Keep WEB_CONCURRENCY * OMP_NUM_THREADS <= available cores. Oversubscribing torch threads
+      # is the main cause of latency spikes under concurrent load.
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  esdata:

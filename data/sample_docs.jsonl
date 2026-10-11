@@ -1,0 +1,37 @@
+{"id": "doc-001", "title": "Vaccines and immunity", "text": "Vaccines expose the immune system to a harmless piece of a pathogen so it can build antibodies and memory cells without causing disease.", "metadata": {"category": "science"}}
+{"id": "doc-002", "title": "Photosynthesis", "text": "Plants convert sunlight, water and carbon dioxide into glucose and oxygen in their chloroplasts.", "metadata": {"category": "science"}}
+{"id": "doc-003", "title": "Black holes", "text": "A black hole is a region of spacetime where gravity is so strong that nothing, not even light, can escape its event horizon.", "metadata": {"category": "science"}}
+{"id": "doc-004", "title": "CRISPR gene editing", "text": "CRISPR-Cas9 lets scientists cut DNA at precise locations, enabling targeted edits to genes in living organisms.", "metadata": {"category": "science"}}
+{"id": "doc-005", "title": "Ocean acidification", "text": "Oceans absorb carbon dioxide from the atmosphere, lowering seawater pH and harming corals and shellfish.", "metadata": {"category": "science"}}
+{"id": "doc-006", "title": "Plate tectonics", "text": "Earth's lithosphere is split into plates whose movement causes earthquakes, volcanoes and mountain building.", "metadata": {"category": "science"}}
+{"id": "doc-007", "title": "Antibiotic resistance", "text": "Overuse of antibiotics lets bacteria evolve resistance, making common infections harder to treat.", "metadata": {"category": "science"}}
+{"id": "doc-008", "title": "Transformer models", "text": "Transformers use self-attention to weigh relationships between all tokens in a sequence, powering modern language models.", "metadata": {"category": "technology"}}
+{"id": "doc-009", "title": "Vector databases", "text": "Vector search engines index embeddings with approximate nearest neighbour structures like HNSW for fast similarity lookup.", "metadata": {"category": "technology"}}
+{"id": "doc-010", "title": "Database indexing", "text": "B-tree indexes let relational databases find rows quickly without scanning entire tables.", "metadata": {"category": "technology"}}
+{"id": "doc-011", "title": "Horizontal scaling", "text": "Scaling a web service horizontally means adding more stateless instances behind a load balancer.", "metadata": {"category": "technology"}}
+{"id": "doc-012", "title": "Containers", "text": "Docker containers package an application with its dependencies so it runs the same everywhere.", "metadata": {"category": "technology"}}
+{"id": "doc-013", "title": "Caching strategies", "text": "Caches such as Redis keep hot data in memory to cut latency and reduce load on primary databases.", "metadata": {"category": "technology"}}
+{"id": "doc-014", "title": "Fine-tuning small datasets", "text": "Transfer learning lets you fine-tune a pretrained neural network on a small labelled dataset with good accuracy.", "metadata": {"category": "technology"}}
+{"id": "doc-015", "title": "Inflation", "text": "Inflation is the general rise in prices over time, often driven by demand outpacing supply or rising costs.", "metadata": {"category": "finance"}}
+{"id": "doc-016", "title": "Interest rates", "text": "Central banks raise interest rates to cool inflation by making borrowing more expensive.", "metadata": {"category": "finance"}}
+{"id": "doc-017", "title": "Index funds", "text": "Index funds track a market index and offer broad diversification with low fees for long-term investors.", "metadata": {"category": "finance"}}
+{"id": "doc-018", "title": "Compound interest", "text": "Compound interest earns returns on both the original principal and previously accumulated interest.", "metadata": {"category": "finance"}}
+{"id": "doc-019", "title": "Startup funding", "text": "Startups raise money in rounds such as seed, Series A and Series B, trading equity for venture capital.", "metadata": {"category": "finance"}}
+{"id": "doc-020", "title": "Cryptocurrency volatility", "text": "Cryptocurrency prices swing sharply because of speculation, thin liquidity and regulatory news.", "metadata": {"category": "finance"}}
+{"id": "doc-021", "title": "Vitamin D deficiency", "text": "Low vitamin D can cause fatigue, bone pain and weakened immunity; sunlight and supplements help.", "metadata": {"category": "health"}}
+{"id": "doc-022", "title": "Sleep and memory", "text": "Deep sleep consolidates memories by replaying and strengthening neural connections formed during the day.", "metadata": {"category": "health"}}
+{"id": "doc-023", "title": "Cardio exercise", "text": "Regular aerobic exercise strengthens the heart, lowers blood pressure and improves mood.", "metadata": {"category": "health"}}
+{"id": "doc-024", "title": "Mediterranean diet", "text": "A Mediterranean diet rich in olive oil, fish, vegetables and legumes is linked to lower heart disease risk.", "metadata": {"category": "health"}}
+{"id": "doc-025", "title": "Stress management", "text": "Mindfulness, exercise and social connection reduce chronic stress and cortisol levels.", "metadata": {"category": "health"}}
+{"id": "doc-026", "title": "Football transfers", "text": "Record football transfer fees have exceeded 200 million euros as clubs compete for elite players.", "metadata": {"category": "sports"}}
+{"id": "doc-027", "title": "Marathon training", "text": "Marathon runners build endurance with long slow runs, tempo sessions and gradual weekly mileage increases.", "metadata": {"category": "sports"}}
+{"id": "doc-028", "title": "Tennis grand slams", "text": "The four tennis grand slams are the Australian Open, French Open, Wimbledon and the US Open.", "metadata": {"category": "sports"}}
+{"id": "doc-029", "title": "Olympic history", "text": "The modern Olympic Games began in Athens in 1896 and now include thousands of athletes from over 200 nations.", "metadata": {"category": "sports"}}
+{"id": "doc-030", "title": "Apollo 11", "text": "In 1969 Apollo 11 landed the first humans on the Moon, with Neil Armstrong and Buzz Aldrin walking on its surface.", "metadata": {"category": "space"}}
+{"id": "doc-031", "title": "Mars rovers", "text": "NASA rovers such as Curiosity and Perseverance search Mars for signs of ancient microbial life.", "metadata": {"category": "space"}}
+{"id": "doc-032", "title": "James Webb telescope", "text": "The James Webb Space Telescope observes in infrared to study the earliest galaxies after the Big Bang.", "metadata": {"category": "space"}}
+{"id": "doc-033", "title": "Reusable rockets", "text": "Reusable first-stage boosters land vertically after launch, sharply reducing the cost of reaching orbit.", "metadata": {"category": "space"}}
+{"id": "doc-034", "title": "Lithium-ion batteries", "text": "Grid-scale lithium-ion batteries store excess solar and wind power for use when demand peaks.", "metadata": {"category": "energy"}}
+{"id": "doc-035", "title": "Solar power", "text": "Photovoltaic panels convert sunlight directly into electricity and have fallen dramatically in cost.", "metadata": {"category": "energy"}}
+{"id": "doc-036", "title": "Wind turbines", "text": "Offshore wind farms take advantage of stronger, steadier winds at sea to generate renewable power.", "metadata": {"category": "energy"}}
+{"id": "doc-037", "title": "Nuclear fusion", "text": "Fusion reactors aim to fuse hydrogen isotopes, releasing vast energy with little long-lived waste.", "metadata": {"category": "energy"}}

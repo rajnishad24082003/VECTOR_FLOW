@@ -1,0 +1,9 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30
+pydantic>=2.7,<3
+pydantic-settings>=2.3
+# The 9.x client sends compatibility headers that Elasticsearch 8 rejects.
+elasticsearch[async]>=8.15,<9
+redis>=5.0
+numpy>=1.26
+sentence-transformers>=3.0

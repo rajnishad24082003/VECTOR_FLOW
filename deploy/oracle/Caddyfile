@@ -1,0 +1,14 @@
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# Public demo: search and sessions are open, but indexing and deleting documents
+	# only work from the VM itself (http://127.0.0.1:8000).
+	@writes {
+		path /documents /documents/*
+		not method GET
+	}
+	respond @writes "Indexing is disabled on the public demo" 403
+
+	redir / /docs
+	reverse_proxy api:8000
+}

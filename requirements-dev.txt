@@ -1,0 +1,9 @@
+# Tests use fake embedder/store, so torch/sentence-transformers are not needed here.
+fastapi>=0.115,<1
+pydantic>=2.7,<3
+pydantic-settings>=2.3
+elasticsearch[async]>=8.15,<9
+redis>=5.0
+numpy>=1.26
+httpx>=0.27
+pytest>=8
